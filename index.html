@@ -99,7 +99,7 @@ button{cursor:pointer}
   justify-content:space-between;
   margin:5px 0;
 }
-.attr input{width:50px}
+.attr input{width:60px}
 </style>
 </head>
 
@@ -125,76 +125,67 @@ button{cursor:pointer}
   <p id="erro"></p>
 </div>
 
-<!-- DASH -->
-<div id="dash" class="hidden">
-  <div class="box">
-    <h2>Criar Campanha</h2>
-    <input id="campNome" placeholder="Nome">
-    <input id="campSenha" placeholder="Senha">
-    <button onclick="criarCampanha()">Criar</button>
-  </div>
-
-  <div class="box">
-    <h2>Entrar na Campanha</h2>
-    <input id="campId" placeholder="ID">
-    <input id="campSenhaIn" placeholder="Senha">
-    <button onclick="entrarCampanha()">Entrar</button>
-  </div>
+<!-- ENTRAR NA CAMPANHA -->
+<div id="campBox" class="box hidden">
+  <h2>Entrar na Campanha</h2>
+  <input id="senhaCamp" placeholder="Senha da campanha">
+  <button onclick="entrarCampanha()">Entrar</button>
 </div>
 
 <!-- CAMPANHA -->
 <div id="campanha" class="hidden">
 
+  <!-- PLAYER -->
   <div id="playerBox" class="box hidden">
-    <h2>Ficha</h2>
+    <h2>Ficha do Player</h2>
 
     <input id="nome" placeholder="Nome do personagem">
     <textarea id="historia" placeholder="História"></textarea>
 
     <h3>Atributos</h3>
-    <div class="attr">Agilidade <input id="agi" type="number" min="0"></div>
-    <div class="attr">Carisma <input id="car" type="number" min="0"></div>
-    <div class="attr">Astúcia <input id="ast" type="number" min="0"></div>
-    <div class="attr">Força <input id="for" type="number" min="0"></div>
-    <div class="attr">Vigor <input id="vig" type="number" min="0"></div>
+    <div class="attr">Agilidade <input id="agi" type="number"></div>
+    <div class="attr">Carisma <input id="car" type="number"></div>
+    <div class="attr">Astúcia <input id="ast" type="number"></div>
+    <div class="attr">Força <input id="forca" type="number"></div>
+    <div class="attr">Vigor <input id="vig" type="number"></div>
 
     <p>Shots: <span id="shots">0</span>/3</p>
-    <button onclick="addShot()">Shot</button>
+    <button onclick="addShot()">Adicionar Shot</button>
 
     <p>Tensão: <span id="tensao">0</span>/10</p>
 
     <h3>Dados</h3>
     <input id="pool" type="number" min="1" value="1">
-    <button onclick="rolar()">Rolar</button>
+    <button onclick="rolar()">Rolar Dados</button>
 
     <div class="dice-area" id="diceArea"></div>
 
-    <button onclick="salvar()">Salvar</button>
+    <button onclick="salvar()">Salvar Ficha</button>
   </div>
 
+  <!-- MESTRE -->
   <div id="masterBox" class="box hidden">
     <h2>Escudo do Mestre</h2>
     <div id="players"></div>
   </div>
 
 </div>
-
 </div>
 
 <script>
-/* FIREBASE */
 firebase.initializeApp({
   apiKey:"AIzaSyALP0nO2FneTe-qwKwC_mNlD5jzHMaPljo",
   authDomain:"rpg-campanha.firebaseapp.com",
   projectId:"rpg-campanha",
-  storageBucket:"rpg-campanha.firebasestorage.app",
-  messagingSenderId:"1095737273808",
-  appId:"1:1095737273808:web:9ab46ac71ba836825c1dd5"
 });
+
 const auth=firebase.auth();
 const db=firebase.firestore();
 
-let uid,campAtual,dataCamp;
+const CAMPAIGN_ID="campanha_principal";
+const SENHA_CAMPANHA="444";
+
+let uid;
 let shots=0,tensao=0;
 
 /* AUTH */
@@ -206,53 +197,53 @@ function registrar(){
   auth.createUserWithEmailAndPassword(email.value,senha.value)
     .catch(e=>erro.innerText=e.message);
 }
+
 auth.onAuthStateChanged(u=>{
   if(!u)return;
   uid=u.uid;
   loginBox.classList.add("hidden");
-  dash.classList.remove("hidden");
+  campBox.classList.remove("hidden");
 });
 
 /* CAMPANHA */
-function criarCampanha(){
-  db.collection("campaigns").add({
-    nome:campNome.value,
-    senha:campSenha.value,
-    mestre:uid
-  });
-}
 function entrarCampanha(){
-  db.collection("campaigns").doc(campId.value).get()
-    .then(d=>{
-      if(!d.exists)return alert("Não existe");
-      if(d.data().senha!==campSenhaIn.value)return alert("Senha errada");
-      campAtual=d.id;
-      dataCamp=d.data();
-      dash.classList.add("hidden");
-      campanha.classList.remove("hidden");
+  if(senhaCamp.value!==SENHA_CAMPANHA){
+    alert("Senha incorreta");
+    return;
+  }
+  campBox.classList.add("hidden");
+  campanha.classList.remove("hidden");
 
-      if(dataCamp.mestre===uid){
+  db.collection("campaigns").doc(CAMPAIGN_ID).get().then(d=>{
+    if(!d.exists){
+      db.collection("campaigns").doc(CAMPAIGN_ID).set({mestre:uid});
+      masterBox.classList.remove("hidden");
+      carregarPlayers();
+    }else{
+      if(d.data().mestre===uid){
         masterBox.classList.remove("hidden");
         carregarPlayers();
       }else{
         playerBox.classList.remove("hidden");
         carregarFicha();
       }
-    });
+    }
+  });
 }
 
 /* PLAYER */
 function salvar(){
-  db.collection("campaigns").doc(campAtual)
+  db.collection("campaigns").doc(CAMPAIGN_ID)
     .collection("players").doc(uid).set({
       nome:nome.value,
       historia:historia.value,
-      agi:agi.value,car:car.value,ast:ast.value,forca:for.value,vig:vig.value,
+      agi:agi.value,car:car.value,ast:ast.value,
+      forca:forca.value,vig:vig.value,
       shots,tensao
     });
 }
 function carregarFicha(){
-  db.collection("campaigns").doc(campAtual)
+  db.collection("campaigns").doc(CAMPAIGN_ID)
     .collection("players").doc(uid).get()
     .then(d=>{
       if(!d.exists)return;
@@ -262,7 +253,7 @@ function carregarFicha(){
       agi.value=x.agi||0;
       car.value=x.car||0;
       ast.value=x.ast||0;
-      for.value=x.forca||0;
+      forca.value=x.forca||0;
       vig.value=x.vig||0;
       shots=x.shots||0;
       tensao=x.tensao||0;
@@ -295,14 +286,14 @@ function atualizar(){
 
 /* MESTRE */
 function carregarPlayers(){
-  db.collection("campaigns").doc(campAtual)
+  db.collection("campaigns").doc(CAMPAIGN_ID)
     .collection("players").onSnapshot(s=>{
       players.innerHTML="";
       s.forEach(d=>{
+        let x=d.data();
         let p=document.createElement("div");
         p.className="box";
-        let x=d.data();
-        p.innerHTML=`<strong>${x.nome}</strong><br>
+        p.innerHTML=`<strong>${x.nome||"Sem nome"}</strong><br>
         Shots:${x.shots} | Tensão:${x.tensao}`;
         players.appendChild(p);
       });
@@ -312,3 +303,4 @@ function carregarPlayers(){
 
 </body>
 </html>
+
