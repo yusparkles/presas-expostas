@@ -32,10 +32,7 @@ body{
 }
 .blood{
   position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
+  inset:0;
   background:url("https://i.imgur.com/2yYayZk.png") repeat-x;
   opacity:.25;
   pointer-events:none;
@@ -119,20 +116,19 @@ button{cursor:pointer}
 <div id="loginBox" class="box">
   <h2>Acesso</h2>
   <input id="email" placeholder="Email">
-  <input id="senha" type="password" placeholder="Senha">
+  <input id="senha" type="password" placeholder="Senha (mín. 6)">
   <button onclick="login()">Entrar</button>
   <button onclick="registrar()">Registrar</button>
-  <p id="erro"></p>
-</div>
-
-<!-- ENTRAR NA CAMPANHA -->
-<div id="campBox" class="box hidden">
-  <h2>Entrar na Campanha</h2>
-  <input id="senhaCamp" placeholder="Senha da campanha">
-  <button onclick="entrarCampanha()">Entrar</button>
+  <p id="erro" style="color:#f33"></p>
 </div>
 
 <!-- CAMPANHA -->
+<div id="campBox" class="box hidden">
+  <h2>Senha da Campanha</h2>
+  <input id="senhaCamp" placeholder="Senha">
+  <button onclick="entrarCampanha()">Entrar</button>
+</div>
+
 <div id="campanha" class="hidden">
 
   <!-- PLAYER -->
@@ -173,6 +169,7 @@ button{cursor:pointer}
 </div>
 
 <script>
+/* 🔥 FIREBASE */
 const firebaseConfig = {
   apiKey: "AIzaSyALP0nO2FneTe-qwKwC_mNlD5jzHMaPljo",
   authDomain: "rpg-campanha.firebaseapp.com",
@@ -181,49 +178,76 @@ const firebaseConfig = {
   messagingSenderId: "1095737273808",
   appId: "1:1095737273808:web:9ab46ac71ba836825c1dd5"
 };
+  
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-const auth=firebase.auth();
-const db=firebase.firestore();
-
-const CAMPAIGN_ID="campanha_principal";
-const SENHA_CAMPANHA="444";
+const CAMPAIGN_ID = "campanha_principal";
+const SENHA_CAMPANHA = "444";
 
 let uid;
-let shots=0,tensao=0;
+let shots = 0;
+let tensao = 0;
 
-/* AUTH */
+/* 🔐 LOGIN CORRIGIDO */
 function login(){
-  auth.signInWithEmailAndPassword(email.value,senha.value)
-    .catch(e=>erro.innerText=e.message);
-}
-function registrar(){
-  auth.createUserWithEmailAndPassword(email.value,senha.value)
-    .catch(e=>erro.innerText=e.message);
+  erro.innerText="";
+  if(!email.value || !senha.value){
+    erro.innerText="Preencha email e senha.";
+    return;
+  }
+
+  auth.signInWithEmailAndPassword(email.value, senha.value)
+    .then(()=>{
+      console.log("Login OK");
+    })
+    .catch(e=>{
+      console.error(e);
+      erro.innerText = e.message;
+    });
 }
 
-auth.onAuthStateChanged(u=>{
-  if(!u)return;
-  uid=u.uid;
+function registrar(){
+  erro.innerText="";
+  if(!email.value || !senha.value){
+    erro.innerText="Preencha email e senha.";
+    return;
+  }
+
+  auth.createUserWithEmailAndPassword(email.value, senha.value)
+    .then(()=>{
+      console.log("Conta criada");
+    })
+    .catch(e=>{
+      console.error(e);
+      erro.innerText = e.message;
+    });
+}
+
+auth.onAuthStateChanged(user=>{
+  if(!user) return;
+  uid = user.uid;
   loginBox.classList.add("hidden");
   campBox.classList.remove("hidden");
 });
 
-/* CAMPANHA */
+/* 🎭 CAMPANHA */
 function entrarCampanha(){
-  if(senhaCamp.value!==SENHA_CAMPANHA){
+  if(senhaCamp.value !== SENHA_CAMPANHA){
     alert("Senha incorreta");
     return;
   }
+
   campBox.classList.add("hidden");
   campanha.classList.remove("hidden");
 
-  db.collection("campaigns").doc(CAMPAIGN_ID).get().then(d=>{
-    if(!d.exists){
-      db.collection("campaigns").doc(CAMPAIGN_ID).set({mestre:uid});
+  db.collection("campaigns").doc(CAMPAIGN_ID).get().then(doc=>{
+    if(!doc.exists){
+      db.collection("campaigns").doc(CAMPAIGN_ID).set({ mestre: uid });
       masterBox.classList.remove("hidden");
       carregarPlayers();
     }else{
-      if(d.data().mestre===uid){
+      if(doc.data().mestre === uid){
         masterBox.classList.remove("hidden");
         carregarPlayers();
       }else{
@@ -234,43 +258,48 @@ function entrarCampanha(){
   });
 }
 
-/* PLAYER */
+/* 📄 PLAYER */
 function salvar(){
   db.collection("campaigns").doc(CAMPAIGN_ID)
     .collection("players").doc(uid).set({
       nome:nome.value,
       historia:historia.value,
-      agi:agi.value,car:car.value,ast:ast.value,
-      forca:forca.value,vig:vig.value,
-      shots,tensao
+      agi:agi.value, car:car.value, ast:ast.value,
+      forca:forca.value, vig:vig.value,
+      shots, tensao
     });
 }
+
 function carregarFicha(){
   db.collection("campaigns").doc(CAMPAIGN_ID)
-    .collection("players").doc(uid).get()
-    .then(d=>{
-      if(!d.exists)return;
-      let x=d.data();
-      nome.value=x.nome||"";
-      historia.value=x.historia||"";
-      agi.value=x.agi||0;
-      car.value=x.car||0;
-      ast.value=x.ast||0;
-      forca.value=x.forca||0;
-      vig.value=x.vig||0;
-      shots=x.shots||0;
-      tensao=x.tensao||0;
+    .collection("players").doc(uid).get().then(doc=>{
+      if(!doc.exists) return;
+      let d = doc.data();
+      nome.value=d.nome||"";
+      historia.value=d.historia||"";
+      agi.value=d.agi||0;
+      car.value=d.car||0;
+      ast.value=d.ast||0;
+      forca.value=d.forca||0;
+      vig.value=d.vig||0;
+      shots=d.shots||0;
+      tensao=d.tensao||0;
       atualizar();
     });
 }
+
+/* 🎯 SHOTS */
 function addShot(){
   shots=(shots+1)%3;
   atualizar();
 }
+
+/* 🎲 DADOS */
 function rolar(){
   diceArea.innerHTML="";
   let qtd=parseInt(pool.value);
   let falhas=0;
+
   for(let i=0;i<qtd;i++){
     let d=Math.floor(Math.random()*6)+1;
     let el=document.createElement("div");
@@ -282,22 +311,22 @@ function rolar(){
   tensao=Math.min(10,tensao+falhas);
   atualizar();
 }
+
 function atualizar(){
-  shots.innerText=shots;
-  tensao.innerText=tensao;
+  shotsSpan.innerText = shots;
+  tensaoSpan.innerText = tensao;
 }
 
-/* MESTRE */
+/* 👑 MESTRE */
 function carregarPlayers(){
   db.collection("campaigns").doc(CAMPAIGN_ID)
-    .collection("players").onSnapshot(s=>{
+    .collection("players").onSnapshot(snap=>{
       players.innerHTML="";
-      s.forEach(d=>{
-        let x=d.data();
+      snap.forEach(d=>{
         let p=document.createElement("div");
         p.className="box";
-        p.innerHTML=`<strong>${x.nome||"Sem nome"}</strong><br>
-        Shots:${x.shots} | Tensão:${x.tensao}`;
+        p.innerHTML=`<strong>${d.data().nome||"Sem nome"}</strong>
+        <br>Shots: ${d.data().shots} | Tensão: ${d.data().tensao}`;
         players.appendChild(p);
       });
     });
