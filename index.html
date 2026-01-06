@@ -173,11 +173,14 @@ button{cursor:pointer}
 </div>
 
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyALP0nO2FneTe-qwKwC_mNlD5jzHMaPljo",
-  authDomain:"rpg-campanha.firebaseapp.com",
-  projectId:"rpg-campanha",
-});
+const firebaseConfig = {
+  apiKey: "AIzaSyALP0nO2FneTe-qwKwC_mNlD5jzHMaPljo",
+  authDomain: "rpg-campanha.firebaseapp.com",
+  projectId: "rpg-campanha",
+  storageBucket: "rpg-campanha.firebasestorage.app",
+  messagingSenderId: "1095737273808",
+  appId: "1:1095737273808:web:9ab46ac71ba836825c1dd5"
+};
 
 const auth=firebase.auth();
 const db=firebase.firestore();
