@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>C.R.I.S — Presas Expostas</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+:root{
+  --red:#b00000;
+  --dark:#050505;
+}
+body{
+  margin:0;
+  background:var(--dark);
+  color:#eee;
+  font-family: monospace;
+}
+.scanlines{
+  pointer-events:none;
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:linear-gradient(rgba(255,255,255,.03) 50%, rgba(0,0,0,.05) 50%);
+  background-size:100% 3px;
+  mix-blend-mode:overlay;
+  z-index:99;
+}
+.blood{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:url("https://i.imgur.com/2yYayZk.png") repeat-x;
+  opacity:.25;
+  pointer-events:none;
+  z-index:98;
+}
+header{
+  padding:20px;
+  border-bottom:1px solid var(--red);
+}
+h1{
+  color:var(--red);
+  animation:glitch 2s infinite;
+}
+@keyframes glitch{
+  0%{text-shadow:2px 0 red}
+  20%{text-shadow:-2px 0 cyan}
+  40%{text-shadow:2px 2px lime}
+  60%{text-shadow:-2px -2px red}
+  80%{text-shadow:2px 0 cyan}
+  100%{text-shadow:none}
+}
+.container{padding:20px}
+.box{
+  border:1px solid #400;
+  background:#0a0a0a;
+  padding:15px;
+  margin-bottom:15px;
+  box-shadow:0 0 15px #200;
+}
+input,textarea,button{
+  width:100%;
+  padding:8px;
+  margin:6px 0;
+  background:#0e0e0e;
+  color:#fff;
+  border:1px solid #500;
+}
+button{cursor:pointer}
+.hidden{display:none}
+
+.dice-area{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.dice{
+  width:60px;
+  height:60px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:28px;
+  border:2px solid #333;
+  background:#111;
+}
+.success{color:#00ff66;border-color:#00ff66}
+.fail{color:#ff3333;border-color:#ff3333}
+
+.attr{
+  display:flex;
+  justify-content:space-between;
+  margin:5px 0;
+}
+.attr input{width:50px}
+</style>
+</head>
+
+<body>
+
+<div class="scanlines"></div>
+<div class="blood"></div>
+
+<header>
+  <h1>C.R.I.S</h1>
+  <p>Campaign Registry & Investigation System</p>
+</header>
+
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox" class="box">
+  <h2>Acesso</h2>
+  <input id="email" placeholder="Email">
+  <input id="senha" type="password" placeholder="Senha">
+  <button onclick="login()">Entrar</button>
+  <button onclick="registrar()">Registrar</button>
+  <p id="erro"></p>
+</div>
+
+<!-- DASH -->
+<div id="dash" class="hidden">
+  <div class="box">
+    <h2>Criar Campanha</h2>
+    <input id="campNome" placeholder="Nome">
+    <input id="campSenha" placeholder="Senha">
+    <button onclick="criarCampanha()">Criar</button>
+  </div>
+
+  <div class="box">
+    <h2>Entrar na Campanha</h2>
+    <input id="campId" placeholder="ID">
+    <input id="campSenhaIn" placeholder="Senha">
+    <button onclick="entrarCampanha()">Entrar</button>
+  </div>
+</div>
+
+<!-- CAMPANHA -->
+<div id="campanha" class="hidden">
+
+  <div id="playerBox" class="box hidden">
+    <h2>Ficha</h2>
+
+    <input id="nome" placeholder="Nome do personagem">
+    <textarea id="historia" placeholder="História"></textarea>
+
+    <h3>Atributos</h3>
+    <div class="attr">Agilidade <input id="agi" type="number" min="0"></div>
+    <div class="attr">Carisma <input id="car" type="number" min="0"></div>
+    <div class="attr">Astúcia <input id="ast" type="number" min="0"></div>
+    <div class="attr">Força <input id="for" type="number" min="0"></div>
+    <div class="attr">Vigor <input id="vig" type="number" min="0"></div>
+
+    <p>Shots: <span id="shots">0</span>/3</p>
+    <button onclick="addShot()">Shot</button>
+
+    <p>Tensão: <span id="tensao">0</span>/10</p>
+
+    <h3>Dados</h3>
+    <input id="pool" type="number" min="1" value="1">
+    <button onclick="rolar()">Rolar</button>
+
+    <div class="dice-area" id="diceArea"></div>
+
+    <button onclick="salvar()">Salvar</button>
+  </div>
+
+  <div id="masterBox" class="box hidden">
+    <h2>Escudo do Mestre</h2>
+    <div id="players"></div>
+  </div>
+
+</div>
+
+</div>
+
+<script>
+/* FIREBASE */
+firebase.initializeApp({
+  apiKey:"AIzaSyALP0nO2FneTe-qwKwC_mNlD5jzHMaPljo",
+  authDomain:"rpg-campanha.firebaseapp.com",
+  projectId:"rpg-campanha",
+  storageBucket:"rpg-campanha.firebasestorage.app",
+  messagingSenderId:"1095737273808",
+  appId:"1:1095737273808:web:9ab46ac71ba836825c1dd5"
+});
+const auth=firebase.auth();
+const db=firebase.firestore();
+
+let uid,campAtual,dataCamp;
+let shots=0,tensao=0;
+
+/* AUTH */
+function login(){
+  auth.signInWithEmailAndPassword(email.value,senha.value)
+    .catch(e=>erro.innerText=e.message);
+}
+function registrar(){
+  auth.createUserWithEmailAndPassword(email.value,senha.value)
+    .catch(e=>erro.innerText=e.message);
+}
+auth.onAuthStateChanged(u=>{
+  if(!u)return;
+  uid=u.uid;
+  loginBox.classList.add("hidden");
+  dash.classList.remove("hidden");
+});
+
+/* CAMPANHA */
+function criarCampanha(){
+  db.collection("campaigns").add({
+    nome:campNome.value,
+    senha:campSenha.value,
+    mestre:uid
+  });
+}
+function entrarCampanha(){
+  db.collection("campaigns").doc(campId.value).get()
+    .then(d=>{
+      if(!d.exists)return alert("Não existe");
+      if(d.data().senha!==campSenhaIn.value)return alert("Senha errada");
+      campAtual=d.id;
+      dataCamp=d.data();
+      dash.classList.add("hidden");
+      campanha.classList.remove("hidden");
+
+      if(dataCamp.mestre===uid){
+        masterBox.classList.remove("hidden");
+        carregarPlayers();
+      }else{
+        playerBox.classList.remove("hidden");
+        carregarFicha();
+      }
+    });
+}
+
+/* PLAYER */
+function salvar(){
+  db.collection("campaigns").doc(campAtual)
+    .collection("players").doc(uid).set({
+      nome:nome.value,
+      historia:historia.value,
+      agi:agi.value,car:car.value,ast:ast.value,forca:for.value,vig:vig.value,
+      shots,tensao
+    });
+}
+function carregarFicha(){
+  db.collection("campaigns").doc(campAtual)
+    .collection("players").doc(uid).get()
+    .then(d=>{
+      if(!d.exists)return;
+      let x=d.data();
+      nome.value=x.nome||"";
+      historia.value=x.historia||"";
+      agi.value=x.agi||0;
+      car.value=x.car||0;
+      ast.value=x.ast||0;
+      for.value=x.forca||0;
+      vig.value=x.vig||0;
+      shots=x.shots||0;
+      tensao=x.tensao||0;
+      atualizar();
+    });
+}
+function addShot(){
+  shots=(shots+1)%3;
+  atualizar();
+}
+function rolar(){
+  diceArea.innerHTML="";
+  let qtd=parseInt(pool.value);
+  let falhas=0;
+  for(let i=0;i<qtd;i++){
+    let d=Math.floor(Math.random()*6)+1;
+    let el=document.createElement("div");
+    el.className="dice "+(d<=2?"fail":"success");
+    el.innerText=d;
+    diceArea.appendChild(el);
+    if(d<=2) falhas++;
+  }
+  tensao=Math.min(10,tensao+falhas);
+  atualizar();
+}
+function atualizar(){
+  shots.innerText=shots;
+  tensao.innerText=tensao;
+}
+
+/* MESTRE */
+function carregarPlayers(){
+  db.collection("campaigns").doc(campAtual)
+    .collection("players").onSnapshot(s=>{
+      players.innerHTML="";
+      s.forEach(d=>{
+        let p=document.createElement("div");
+        p.className="box";
+        let x=d.data();
+        p.innerHTML=`<strong>${x.nome}</strong><br>
+        Shots:${x.shots} | Tensão:${x.tensao}`;
+        players.appendChild(p);
+      });
+    });
+}
+</script>
+
+</body>
+</html>
